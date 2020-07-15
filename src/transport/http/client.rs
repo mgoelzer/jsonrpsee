@@ -50,6 +50,7 @@ pub struct HttpTransportClient {
     /// Sender that sends requests to the background task.
     requests_tx: mpsc::Sender<FrontToBack>,
     url: String,
+    auth_token: String,
     /// Receives responses in any order.
     responses: stream::FuturesUnordered<
         oneshot::Receiver<Result<hyper::Response<hyper::Body>, hyper::Error>>,
@@ -67,7 +68,7 @@ struct FrontToBack {
 impl HttpTransportClient {
     /// Initializes a new HTTP client.
     // TODO: better type for target
-    pub fn new(target: &str) -> Self {
+    pub fn new(target: &str, auth_token: &str) -> Self {
         let (requests_tx, requests_rx) = mpsc::channel::<FrontToBack>(4);
 
         // Because hyper can only be polled through tokio, we spawn it in a background thread.
@@ -88,6 +89,7 @@ impl HttpTransportClient {
         HttpTransportClient {
             requests_tx,
             url: target.to_owned(),
+            auth_token: auth_token.to_owned(),
             responses: stream::FuturesUnordered::new(),
         }
     }
@@ -103,13 +105,27 @@ impl TransportClient for HttpTransportClient {
         let mut requests_tx = self.requests_tx.clone();
 
         let request = common::to_vec(&request).map(|body| {
-            hyper::Request::post(&self.url)
-                .header(
-                    hyper::header::CONTENT_TYPE,
-                    hyper::header::HeaderValue::from_static("application/json"),
-                )
-                .body(From::from(body))
-                .expect("Uri and request headers are valid; qed") // TODO: not necessarily true for URL here
+            if self.auth_token!="" {
+                hyper::Request::post(&self.url)
+                    .header(
+                        hyper::header::CONTENT_TYPE,
+                        hyper::header::HeaderValue::from_static("application/json"),
+                    )
+                    .header(
+                        hyper::header::AUTHORIZATION,
+                        hyper::header::HeaderValue::from_str(&format!("Bearer {}",self.auth_token)).unwrap(),
+                    )
+                    .body(From::from(body))
+                    .expect("Uri and request headers are valid; qed") // TODO: not necessarily true for URL here
+            } else {
+                hyper::Request::post(&self.url)
+                    .header(
+                        hyper::header::CONTENT_TYPE,
+                        hyper::header::HeaderValue::from_static("application/json"),
+                    )
+                    .body(From::from(body))
+                    .expect("Uri and request headers are valid; qed") // TODO: not necessarily true for URL here
+            }
         });
 
         Box::pin(async move {

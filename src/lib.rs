@@ -203,7 +203,7 @@ pub async fn http_server(addr: &SocketAddr) -> Result<Server, Box<dyn error::Err
 #[cfg(feature = "http")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
 pub fn http_client(addr: &str) -> Client {
-    let transport = transport::http::HttpTransportClient::new(addr);
+    let transport = transport::http::HttpTransportClient::new(addr,"");
     Client::from(raw::RawClient::new(transport))
 }
 
